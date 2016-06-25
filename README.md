@@ -1,2 +1,2 @@
-# hterm-commonjs
-Chromium's hterm, packaged as a require()'able module
+# hterm-umd
+Chromium's hterm, automatically packaged as a UMD module (CommonJS/AMD/globals)
