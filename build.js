@@ -4,37 +4,49 @@ const execSync = require('child_process').execSync
 const fs = require('fs')
 const path = require('path')
 
-// BEGIN USER-DEFINED CONSTANTS
-const TMPDIR = 'tmp'
-const OUT_PATH = 'dist/index.js'
+const HTERM_REPO = 'https://chromium.googlesource.com/apps/libapps'
+const HTERM_BRANCH = 'master'
+const OUTFILE = 'dist/index.js'
+const TMPDIR = path.join(__dirname, 'tmp')
 
-const HTERM_REPO = `https://chromium.googlesource.com/apps/libapps`
-const HTERM_REV = 'master'
-const HTERM_GIT_ARGS = `--work-tree="${TMPDIR}" --git-dir="${TMPDIR}/.git"`
-const HTERM_CHANGELOG_PATH = `${TMPDIR}/hterm/doc/ChangeLog.md`
+function buildHterm (repo, branch, outfile, tmpdir) {
+  if (!tmpdir) tmpdir = TMPDIR
+  const gitargs = `--work-tree="${tmpdir}" --git-dir="${tmpdir}/.git"`
+  execSync(`mkdir -p ${tmpdir}`)
+  execSync(`git clone ${repo} ${tmpdir}`)
+  execSync(`git ${gitargs} checkout ${branch}`)
+  execSync(`${tmpdir}/hterm/bin/mkdist.sh`)
 
-const PACKAGE_JSON = 'package.json'
-// END USER-DEFINED CONSTANTS
+  fs.writeFileSync(path.join(__dirname, outfile), `
+${fs.readFileSync(`${tmpdir}/hterm/dist/js/hterm_all.js`) /* libdot */}
+${fs.readFileSync(`${tmpdir}/hterm/dist/js/hterm.js`)   /* hterm */}
+module.exports.lib = window.lib = lib;
+module.exports.hterm = window.hterm = hterm;
+  `.replace(/^\s+/, '').replace(/\s+$/, '\n'))
 
-execSync(`mkdir -p ${TMPDIR}`)
-execSync(`git clone ${HTERM_REPO} ${TMPDIR}`)
-execSync(`git ${HTERM_GIT_ARGS} checkout ${HTERM_REV}`)
-execSync(`${TMPDIR}/hterm/bin/mkdist.sh`)
+  let [_, htermVersion] = fs.readFileSync(`${tmpdir}/hterm/doc/ChangeLog.md`).toString().match(/([\d.]+)/) || []
+  let htermRev = execSync(`git ${gitargs} rev-parse HEAD`).toString().trim()
+  execSync(`rm -rf ${tmpdir}`)
+  return {
+    version: htermVersion,
+    rev: htermRev
+  }
+}
 
-fs.writeFileSync(path.join(__dirname, OUT_PATH), `
-    ${fs.readFileSync(`${TMPDIR}/hterm/dist/js/hterm_all.js`) /* libdot */}
-    ${fs.readFileSync(`${TMPDIR}/hterm/dist/js/hterm.js`)     /* hterm */}
+function updateVersion (path, htermVersion, htermRev) {
+  let pkg = JSON.parse(fs.readFileSync(path))
+  pkg.version = `${pkg.version.replace(/\+.*$/, '')}+${htermVersion ? `${htermVersion}.sha.` : ''}${htermRev.slice(0, 7)}`
+  fs.writeFileSync(path, `${JSON.stringify(pkg, null, '  ')}\n`)
+  return pkg.version
+}
 
-    module.exports.lib = window.lib = lib;
-    module.exports.hterm = window.hterm = hterm;
-`)
+if (require.main === module) {
+  let hterm = buildHterm(HTERM_REPO, HTERM_BRANCH, OUTFILE)
+  console.log(`built ${OUTFILE}`)
+  let version = updateVersion('package.json', hterm.version, hterm.rev)
+  console.log(version)
+}
 
-let htermRev = execSync(`git ${HTERM_GIT_ARGS} rev-parse HEAD`).toString().trim()
-let [_, htermVersion] = fs.readFileSync(HTERM_CHANGELOG_PATH).toString().match(/([\d.]+)/) || []
-
-let pkg = JSON.parse(fs.readFileSync(PACKAGE_JSON))
-pkg.version = `${pkg.version.replace(/\+.*$/, '')}+${htermVersion ? `${htermVersion}.sha.` : ''}${htermRev.slice(0, 7)}`
-fs.writeFileSync(PACKAGE_JSON, `${JSON.stringify(pkg, null, '  ')}\n`)
-
-execSync(`rm -rf ${TMPDIR}`)
-console.log(`built ${OUT_PATH}`)
+// this is a build script but let's be a good citizen anyway
+module.exports.buildHterm = buildHterm
+module.exports.updateVersion = updateVersion
