@@ -5048,7 +5048,7 @@ lib.resource.add('hterm/audio/bell', 'audio/ogg;base64',
 );
 
 lib.resource.add('hterm/concat/date', 'text/plain',
-'Sat, 25 Jun 2016 07:21:01 +0000' +
+'Sat, 25 Jun 2016 10:04:06 +0000' +
 ''
 );
 
@@ -17098,7 +17098,7 @@ lib.resource.add('hterm/audio/bell', 'audio/ogg;base64',
 );
 
 lib.resource.add('hterm/concat/date', 'text/plain',
-'Sat, 25 Jun 2016 07:21:02 +0000' +
+'Sat, 25 Jun 2016 10:04:07 +0000' +
 ''
 );
 

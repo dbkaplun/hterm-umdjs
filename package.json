@@ -1,6 +1,6 @@
 {
   "name": "hterm-commonjs",
-  "version": "1.0.0",
+  "version": "1.0.0+1.57.sha.9889617",
   "description": "Chromium's hterm, packaged as a require()'able module",
   "homepage": "https://github.com/dbkaplun/hterm-commonjs#readme",
   "bugs": "https://github.com/dbkaplun/hterm-commonjs/issues",
