@@ -5048,7 +5048,7 @@ lib.resource.add('hterm/audio/bell', 'audio/ogg;base64',
 );
 
 lib.resource.add('hterm/concat/date', 'text/plain',
-'Sat, 25 Jun 2016 06:37:22 +0000' +
+'Sat, 25 Jun 2016 07:21:01 +0000' +
 ''
 );
 
@@ -17098,7 +17098,7 @@ lib.resource.add('hterm/audio/bell', 'audio/ogg;base64',
 );
 
 lib.resource.add('hterm/concat/date', 'text/plain',
-'Sat, 25 Jun 2016 06:37:24 +0000' +
+'Sat, 25 Jun 2016 07:21:02 +0000' +
 ''
 );
 
@@ -17120,5 +17120,5 @@ lib.resource.add('hterm/git/HEAD', 'text/plain',
 
 
 
-    module.exports.lib = lib;
-    module.exports.hterm = hterm;
+    module.exports.lib = window.lib = lib;
+    module.exports.hterm = window.hterm = hterm;

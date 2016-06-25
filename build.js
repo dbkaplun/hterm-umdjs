@@ -16,8 +16,8 @@ fs.writeFileSync(DIST_PATH, `
     ${fs.readFileSync(`${HTERM_PATH}/dist/js/hterm_all.js`) /* libdot */}
     ${fs.readFileSync(`${HTERM_PATH}/dist/js/hterm.js`)     /* hterm */}
 
-    module.exports.lib = lib;
-    module.exports.hterm = hterm;
+    module.exports.lib = window.lib = lib;
+    module.exports.hterm = window.hterm = hterm;
 `)
 
 execSync(`rm -rf ${TMP}`)
