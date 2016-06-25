@@ -7,6 +7,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "./build.js",
+    "update-and-publish": "export VERSION=\"$(npm run build | tail -n1)\" && git add . && git commit -m \"Version $VERSION\" && git tag \"v$VERSION\" && npm publish",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
