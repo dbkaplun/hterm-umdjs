@@ -5062,22 +5062,22 @@ lib.resource.add('hterm/audio/bell', 'audio/ogg;base64',
 );
 
 lib.resource.add('hterm/concat/date', 'text/plain',
-'Sat, 25 Jun 2016 22:05:06 +0000' +
+'Mon, 18 Jul 2016 17:51:02 +0000' +
 ''
 );
 
 lib.resource.add('hterm/changelog/version', 'text/plain',
-'1.57' +
+'1.58' +
 ''
 );
 
 lib.resource.add('hterm/changelog/date', 'text/plain',
-'2016-04-06' +
+'2016-07-12' +
 ''
 );
 
 lib.resource.add('hterm/git/HEAD', 'text/plain',
-'98896178e9e84ae5533aa04cecf88c2564fed007' +
+'15ed49071379e51ae47d929134366eb156a6943a' +
 ''
 );
 
@@ -9417,6 +9417,7 @@ hterm.ScrollPort.prototype.decorate = function(div) {
       'display: block;' +
       'font-family: monospace;' +
       'font-size: 15px;' +
+      'font-variant-ligatures: none;' +
       'height: 100%;' +
       'overflow-y: scroll; overflow-x: hidden;' +
       'white-space: pre;' +
@@ -13322,9 +13323,9 @@ hterm.Terminal.prototype.onMouse_ = function(e) {
   }
 
   if (!reportMouseEvents) {
-    if (e.type == 'dblclick') {
+    if (e.type == 'dblclick' && this.copyOnSelect) {
       this.screen_.expandSelection(this.document_.getSelection());
-      hterm.copySelectionToClipboard(this.document_);
+      this.copySelectionToClipboard(this.document_);
     }
 
     if (e.type == 'mousedown' && e.which == this.mousePasteButton)
@@ -13332,7 +13333,7 @@ hterm.Terminal.prototype.onMouse_ = function(e) {
 
     if (e.type == 'mouseup' && e.which == 1 && this.copyOnSelect &&
         !this.document_.getSelection().isCollapsed) {
-      hterm.copySelectionToClipboard(this.document_);
+      this.copySelectionToClipboard(this.document_);
     }
 
     if ((e.type == 'mousemove' || e.type == 'mouseup') &&
@@ -17113,22 +17114,22 @@ lib.resource.add('hterm/audio/bell', 'audio/ogg;base64',
 );
 
 lib.resource.add('hterm/concat/date', 'text/plain',
-'Sat, 25 Jun 2016 22:05:08 +0000' +
+'Mon, 18 Jul 2016 17:51:03 +0000' +
 ''
 );
 
 lib.resource.add('hterm/changelog/version', 'text/plain',
-'1.57' +
+'1.58' +
 ''
 );
 
 lib.resource.add('hterm/changelog/date', 'text/plain',
-'2016-04-06' +
+'2016-07-12' +
 ''
 );
 
 lib.resource.add('hterm/git/HEAD', 'text/plain',
-'98896178e9e84ae5533aa04cecf88c2564fed007' +
+'15ed49071379e51ae47d929134366eb156a6943a' +
 ''
 );
 
