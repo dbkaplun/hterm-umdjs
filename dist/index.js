@@ -352,10 +352,16 @@ lib.colors.x11ToCSS = function(v) {
  * @return {string|Array.<string>} The converted value or values.
  */
 lib.colors.hexToRGB = function(arg) {
+  var hex16 = lib.colors.re_.hex16;
+  var hex24 = lib.colors.re_.hex24;
+
   function convert(hex) {
-    var re = (hex.length == 4) ?
-        lib.colors.re_.hex16 : lib.colors.re_.hex24;
-    var ary = hex.match(re)
+    if (hex.length == 4) {
+      hex = hex.replace(hex16, function(h, r, g, b) {
+        return "#" + r + r + g + g + b + b;
+      });
+    }
+    var ary = hex.match(hex24);
     if (!ary)
       return null;
 
@@ -5062,22 +5068,22 @@ lib.resource.add('hterm/audio/bell', 'audio/ogg;base64',
 );
 
 lib.resource.add('hterm/concat/date', 'text/plain',
-'Mon, 18 Jul 2016 17:51:02 +0000' +
+'Sat, 03 Dec 2016 00:01:17 +0000' +
 ''
 );
 
 lib.resource.add('hterm/changelog/version', 'text/plain',
-'1.58' +
+'1.60' +
 ''
 );
 
 lib.resource.add('hterm/changelog/date', 'text/plain',
-'2016-07-12' +
+'2016-09-15' +
 ''
 );
 
 lib.resource.add('hterm/git/HEAD', 'text/plain',
-'15ed49071379e51ae47d929134366eb156a6943a' +
+'git rev-parse HEAD' +
 ''
 );
 
@@ -5486,7 +5492,7 @@ hterm.Frame.prototype.onLoad_ = function() {
   this.messageChannel_.port1.start();
   this.iframe_.contentWindow.postMessage(
       {name: 'ipc-init', argv: [{messagePort: this.messageChannel_.port2}]},
-      [this.messageChannel_.port2], this.url);
+      this.url, [this.messageChannel_.port2]);
 };
 
 /**
@@ -6243,16 +6249,13 @@ hterm.Keyboard.Bindings.prototype.clear = function () {
 /**
  * Add a new binding.
  *
- * If a binding for the keyPattern already exists it will be overridden.
- *
- * More specific keyPatterns take precedence over those with wildcards.  Given
- * bindings for "Ctrl-A" and "Ctrl-*-A", and a "Ctrl-A" keydown, the "Ctrl-A"
- * binding will match even if "Ctrl-*-A" was created last.
+ * Internal API that assumes parsed objects as inputs.
+ * See the public addBinding for more details.
  *
  * @param {hterm.Keyboard.KeyPattern} keyPattern
  * @param {string|function|hterm.Keyboard.KeyAction} action
  */
-hterm.Keyboard.Bindings.prototype.addBinding = function(keyPattern, action) {
+hterm.Keyboard.Bindings.prototype.addBinding_ = function(keyPattern, action) {
   var binding = null;
   var list = this.bindings_[keyPattern.keyCode];
   if (list) {
@@ -6283,48 +6286,93 @@ hterm.Keyboard.Bindings.prototype.addBinding = function(keyPattern, action) {
 };
 
 /**
+ * Add a new binding.
+ *
+ * If a binding for the keyPattern already exists it will be overridden.
+ *
+ * More specific keyPatterns take precedence over those with wildcards.  Given
+ * bindings for "Ctrl-A" and "Ctrl-*-A", and a "Ctrl-A" keydown, the "Ctrl-A"
+ * binding will match even if "Ctrl-*-A" was created last.
+ *
+ * If action is a string, it will be passed through hterm.Parser.parseKeyAction.
+ *
+ * For example:
+ *   // Will replace Ctrl-P keystrokes with the string "hiya!".
+ *   addBinding('Ctrl-P', "'hiya!'");
+ *   // Will cancel the keystroke entirely (make it do nothing).
+ *   addBinding('Alt-D', hterm.Keyboard.KeyActions.CANCEL);
+ *   // Will execute the code and return the action.
+ *   addBinding('Ctrl-T', function() {
+ *     console.log('Got a T!');
+ *     return hterm.Keyboard.KeyActions.PASS;
+ *   });
+ *
+ * @param {string|hterm.Keyboard.KeyPattern} keyPattern
+ * @param {string|function|hterm.Keyboard.KeyAction} action
+ */
+hterm.Keyboard.Bindings.prototype.addBinding = function(key, action) {
+  // If we're given a hterm.Keyboard.KeyPattern object, pass it down.
+  if (typeof key != 'string') {
+    this.addBinding_(key, action);
+    return;
+  }
+
+  // Here we treat key as a string.
+  var p = new hterm.Parser();
+
+  p.reset(key);
+  var sequence;
+
+  try {
+    sequence = p.parseKeySequence();
+  } catch (ex) {
+    console.error(ex);
+    return;
+  }
+
+  if (!p.isComplete()) {
+    console.error(p.error('Expected end of sequence: ' + sequence));
+    return;
+  }
+
+  // If action is a string, parse it.  Otherwise assume it's callable.
+  if (typeof action == 'string') {
+    p.reset(action);
+    try {
+      action = p.parseKeyAction();
+    } catch (ex) {
+      console.error(ex);
+      return;
+    }
+  }
+
+  if (!p.isComplete()) {
+    console.error(p.error('Expected end of sequence: ' + sequence));
+    return;
+  }
+
+  this.addBinding_(new hterm.Keyboard.KeyPattern(sequence), action);
+};
+
+/**
  * Add multiple bindings at a time using a map of {string: string, ...}
  *
  * This uses hterm.Parser to parse the maps key into KeyPatterns, and the
  * map values into {string|function|KeyAction}.
  *
+ * For example:
+ *  {
+ *    // Will replace Ctrl-P keystrokes with the string "hiya!".
+ *    'Ctrl-P': "'hiya!'",
+ *    // Will cancel the keystroke entirely (make it do nothing).
+ *    'Alt-D': hterm.Keyboard.KeyActions.CANCEL,
+ *  }
+ *
  * @param {Object} map
  */
 hterm.Keyboard.Bindings.prototype.addBindings = function(map) {
-  var p = new hterm.Parser();
-
   for (var key in map) {
-    p.reset(key);
-    var sequence;
-
-    try {
-      sequence = p.parseKeySequence();
-    } catch (ex) {
-      console.error(ex);
-      continue;
-    }
-
-    if (!p.isComplete()) {
-      console.error(p.error('Expected end of sequence: ' + sequence));
-      continue;
-    }
-
-    p.reset(map[key]);
-    var action;
-
-    try {
-      action = p.parseKeyAction();
-    } catch (ex) {
-      console.error(ex);
-      continue;
-    }
-
-    if (!p.isComplete()) {
-      console.error(p.error('Expected end of sequence: ' + sequence));
-      continue;
-    }
-
-    this.addBinding(new hterm.Keyboard.KeyPattern(sequence), action);
+    this.addBinding(key, map[key]);
   }
 };
 
@@ -9716,6 +9764,13 @@ hterm.ScrollPort.prototype.getFontSize = function() {
  * @return {hterm.Size} A new hterm.Size object.
  */
 hterm.ScrollPort.prototype.measureCharacterSize = function(opt_weight) {
+  // Number of lines used to average the height of a single character.
+  var numberOfLines = 100;
+  var rulerSingleLineContents = ('XXXXXXXXXXXXXXXXXXXX' +
+                                 'XXXXXXXXXXXXXXXXXXXX' +
+                                 'XXXXXXXXXXXXXXXXXXXX' +
+                                 'XXXXXXXXXXXXXXXXXXXX' +
+                                 'XXXXXXXXXXXXXXXXXXXX');
   if (!this.ruler_) {
     this.ruler_ = this.document_.createElement('div');
     this.ruler_.style.cssText = (
@@ -9729,11 +9784,11 @@ hterm.ScrollPort.prototype.measureCharacterSize = function(opt_weight) {
     // We need to put the text in a span to make the size calculation
     // work properly in Firefox
     this.rulerSpan_ = this.document_.createElement('span');
-    this.rulerSpan_.textContent = ('XXXXXXXXXXXXXXXXXXXX' +
-                                   'XXXXXXXXXXXXXXXXXXXX' +
-                                   'XXXXXXXXXXXXXXXXXXXX' +
-                                   'XXXXXXXXXXXXXXXXXXXX' +
-                                   'XXXXXXXXXXXXXXXXXXXX');
+    var rulerContents = '' + rulerSingleLineContents;
+    for (var i = 0; i < numberOfLines - 1; ++i)
+      rulerContents += String.fromCharCode(13) + rulerSingleLineContents;
+
+    this.rulerSpan_.innerHTML = rulerContents;
     this.ruler_.appendChild(this.rulerSpan_);
 
     this.rulerBaseline_ = this.document_.createElement('span');
@@ -9747,8 +9802,8 @@ hterm.ScrollPort.prototype.measureCharacterSize = function(opt_weight) {
   this.rowNodes_.appendChild(this.ruler_);
   var rulerSize = hterm.getClientSize(this.rulerSpan_);
 
-  var size = new hterm.Size(rulerSize.width / this.ruler_.textContent.length,
-                            rulerSize.height);
+  var size = new hterm.Size(rulerSize.width / rulerSingleLineContents.length,
+                            rulerSize.height / numberOfLines);
 
   this.ruler_.appendChild(this.rulerBaseline_);
   size.baseline = this.rulerBaseline_.offsetTop;
@@ -10281,8 +10336,7 @@ hterm.ScrollPort.prototype.scrollRowToBottom = function(rowIndex) {
  * returns the row that *should* be at the top.
  */
 hterm.ScrollPort.prototype.getTopRowIndex = function() {
-  return lib.f.smartFloorDivide(
-      this.screen_.scrollTop, this.characterSize.height);
+  return Math.round(this.screen_.scrollTop / this.characterSize.height);
 };
 
 /**
@@ -17114,22 +17168,22 @@ lib.resource.add('hterm/audio/bell', 'audio/ogg;base64',
 );
 
 lib.resource.add('hterm/concat/date', 'text/plain',
-'Mon, 18 Jul 2016 17:51:03 +0000' +
+'Sat, 03 Dec 2016 00:01:18 +0000' +
 ''
 );
 
 lib.resource.add('hterm/changelog/version', 'text/plain',
-'1.58' +
+'1.60' +
 ''
 );
 
 lib.resource.add('hterm/changelog/date', 'text/plain',
-'2016-07-12' +
+'2016-09-15' +
 ''
 );
 
 lib.resource.add('hterm/git/HEAD', 'text/plain',
-'15ed49071379e51ae47d929134366eb156a6943a' +
+'git rev-parse HEAD' +
 ''
 );
 
