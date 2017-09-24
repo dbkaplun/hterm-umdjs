@@ -1918,7 +1918,7 @@ lib.MessageManager.prototype.get = function(msgname, opt_args, opt_default) {
     message = this.messages[msgname];
 
   } else {
-    if (window.chrome && window.chrome.i18n)
+    if (window.chrome.i18n)
       message = chrome.i18n.getMessage(msgname);
 
     if (!message) {
@@ -2749,13 +2749,7 @@ lib.PreferenceManager.prototype.exportAsJson = function() {
  *
  * This will create nested preference managers as well.
  */
-lib.PreferenceManager.prototype.importFromJson = function(json, opt_onComplete) {
-  let pendingWrites = 0;
-  const onWriteStorage = () => {
-    if (--pendingWrites < 1 && opt_onComplete)
-      opt_onComplete();
-  };
-
+lib.PreferenceManager.prototype.importFromJson = function(json) {
   for (var name in json) {
     if (name in this.childLists_) {
       var childList = json[name];
@@ -2766,13 +2760,11 @@ lib.PreferenceManager.prototype.importFromJson = function(json, opt_onComplete) 
         if (!childPrefManager)
           childPrefManager = this.createChild(name, null, id);
 
-        childPrefManager.importFromJson(childList[i].json, onWriteStorage);
-        pendingWrites++;
+        childPrefManager.importFromJson(childList[i].json);
       }
 
     } else {
-      this.set(name, json[name], onWriteStorage);
-      pendingWrites++;
+      this.set(name, json[name]);
     }
   }
 };
@@ -3019,27 +3011,9 @@ lib.Storage.Chrome.prototype.getItems = function(keys, callback) {
  *     to read the value, since the local cache is updated synchronously.
  */
 lib.Storage.Chrome.prototype.setItem = function(key, value, opt_callback) {
-  const onComplete = () => {
-    if (chrome.runtime.lastError) {
-      // Doesn't seem to be any better way of handling this.
-      // https://crbug.com/764759
-      if (chrome.runtime.lastError.message.indexOf('MAX_WRITE_OPERATIONS')) {
-        console.warn(`Will retry save of ${key} after exceeding quota`,
-                     chrome.runtime.lastError);
-        setTimeout(() => this.setItem(key, value, onComplete), 1000);
-        return;
-      } else {
-        console.error('Unknown runtime error', chrome.runtime.lastError);
-      }
-    }
-
-    if (opt_callback)
-      opt_callback();
-  };
-
   var obj = {};
   obj[key] = value;
-  this.storage_.set(obj, onComplete);
+  this.storage_.set(obj, opt_callback);
 };
 
 /**
@@ -5502,7 +5476,7 @@ lib.resource.add('hterm/images/icon-96', 'image/png;base64',
 );
 
 lib.resource.add('hterm/concat/date', 'text/plain',
-'Sun, 24 Sep 2017 20:57:12 +0000' +
+'Sun, 24 Sep 2017 21:15:26 +0000' +
 ''
 );
 
@@ -6396,16 +6370,14 @@ hterm.Keyboard.prototype.uninstallKeyboard = function() {
 /**
  * Handle onTextInput events.
  *
- * These are generated when using IMEs, Virtual Keyboards (VKs), compose keys,
- * Unicode input, etc...
+ * We're not actually supposed to get these, but we do on the Mac in the case
+ * where a third party app sends synthetic keystrokes to Chrome.
  */
 hterm.Keyboard.prototype.onTextInput_ = function(e) {
   if (!e.data)
     return;
 
-  // Just pass the generated buffer straight down.  No need for us to split it
-  // up or otherwise parse it ahead of times.
-  this.terminal.onVTKeystroke(e.data);
+  e.data.split('').forEach(this.terminal.onVTKeystroke.bind(this.terminal));
 };
 
 /**
@@ -6640,22 +6612,28 @@ hterm.Keyboard.prototype.onKeyDown_ = function(e) {
     meta = false;
   }
 
-  if (action.substr(0, 2) == '\x1b[' && (alt || control || shift || meta)) {
+  if (action.substr(0, 2) == '\x1b[' && (alt || control || shift)) {
     // The action is an escape sequence that and it was triggered in the
     // presence of a keyboard modifier, we may need to alter the action to
     // include the modifier before sending it.
 
-    // The math is funky but aligns w/xterm.
-    let imod = 1;
-    if (shift)
-      imod += 1;
-    if (alt)
-      imod += 2;
-    if (control)
-      imod += 4;
-    if (meta)
-      imod += 8;
-    let mod = ';' + imod;
+    var mod;
+
+    if (shift && !(alt || control)) {
+      mod = ';2';
+    } else if (alt && !(shift || control)) {
+      mod = ';3';
+    } else if (shift && alt && !control) {
+      mod = ';4';
+    } else if (control && !(shift || alt)) {
+      mod = ';5';
+    } else if (shift && control && !alt) {
+      mod = ';6';
+    } else if (alt && control && !shift) {
+      mod = ';7';
+    } else if (shift && alt && control) {
+      mod = ';8';
+    }
 
     if (action.length == 3) {
       // Some of the CSI sequences have zero parameters unless modified.
@@ -10170,7 +10148,12 @@ hterm.ScrollPort.prototype.decorate = function(div) {
   this.screen_.addEventListener('touchcancel', this.onTouch_.bind(this));
   this.screen_.addEventListener('copy', this.onCopy_.bind(this));
   this.screen_.addEventListener('paste', this.onPaste_.bind(this));
-  this.screen_.addEventListener('drop', this.onDragAndDrop_.bind(this));
+  // Disable drag & drop of text/content.  We don't handle it at all (yet?),
+  // and the default behavior just confuses hterm.
+  this.screen_.addEventListener('drop', function(e) {
+    e.preventDefault();
+    return false;
+  });
 
   doc.body.addEventListener('keydown', this.onBodyKeyDown_.bind(this));
 
@@ -11305,8 +11288,6 @@ hterm.ScrollPort.prototype.onBodyKeyDown_ = function(e) {
 
 /**
  * Handle a paste event on the the ScrollPort's screen element.
- *
- * TODO: Handle ClipboardData.files transfers.  https://crbug.com/433581.
  */
 hterm.ScrollPort.prototype.onPaste_ = function(e) {
   this.pasteTarget_.focus();
@@ -11325,43 +11306,6 @@ hterm.ScrollPort.prototype.onPaste_ = function(e) {
  */
 hterm.ScrollPort.prototype.handlePasteTargetTextInput_ = function(e) {
   e.stopPropagation();
-};
-
-/**
- * Handle a drop event on the the ScrollPort's screen element.
- *
- * By default we try to copy in the structured format (HTML/whatever).
- * The shift key can select plain text though.
- *
- * TODO: Handle DataTransfer.files transfers.  https://crbug.com/433581.
- *
- * @param {DragEvent} e The drag event that fired us.
- */
-hterm.ScrollPort.prototype.onDragAndDrop_ = function(e) {
-  e.preventDefault();
-
-  let data;
-  let format;
-
-  // If the shift key isn't active, try to find a text source (but not plain
-  // text).  e.g. text/html is OK.
-  if (!e.shiftKey) {
-    e.dataTransfer.types.forEach((t) => {
-      if (!format && t != 'text/plain' && t.startsWith('text/'))
-        format = t;
-    });
-
-    // If we found a non-plain text source, try it out first.
-    if (format)
-      data = e.dataTransfer.getData(format);
-  }
-
-  // If we haven't loaded anything useful, fall back to plain text.
-  if (!data)
-    data = e.dataTransfer.getData('text/plain');
-
-  if (data)
-    this.publish('paste', {text: data});
 };
 
 /**
@@ -14186,31 +14130,23 @@ hterm.Terminal.prototype.showOverlay = function(msg, opt_timeout) {
   this.overlayNode_.style.left = (divSize.width - overlaySize.width -
       this.scrollPort_.currentScrollbarWidthPx) / 2 + 'px';
 
+  var self = this;
+
   if (this.overlayTimeout_)
     clearTimeout(this.overlayTimeout_);
 
   if (opt_timeout === null)
     return;
 
-  this.overlayTimeout_ = setTimeout(() => {
-    this.overlayNode_.style.opacity = '0';
-    this.overlayTimeout_ = setTimeout(() => this.hideOverlay(), 200);
-  }, opt_timeout || 1500);
-};
-
-/**
- * Hide the terminal overlay immediately.
- *
- * Useful when we show an overlay for an event with an unknown end time.
- */
-hterm.Terminal.prototype.hideOverlay = function() {
-  if (this.overlayTimeout_)
-    clearTimeout(this.overlayTimeout_);
-  this.overlayTimeout_ = null;
-
-  if (this.overlayNode_.parentNode)
-    this.overlayNode_.parentNode.removeChild(this.overlayNode_);
-  this.overlayNode_.style.opacity = '0.75';
+  this.overlayTimeout_ = setTimeout(function() {
+      self.overlayNode_.style.opacity = '0';
+      self.overlayTimeout_ = setTimeout(function() {
+          if (self.overlayNode_.parentNode)
+            self.overlayNode_.parentNode.removeChild(self.overlayNode_);
+          self.overlayTimeout_ = null;
+          self.overlayNode_.style.opacity = '0.75';
+        }, 200);
+    }, opt_timeout || 1500);
 };
 
 /**
@@ -14726,9 +14662,6 @@ hterm.Terminal.IO = function(terminal) {
 
   // The IO object to restore on IO.pop().
   this.previousIO_ = null;
-
-  // Any data this object accumulated while not active.
-  this.buffered_ = '';
 };
 
 /**
@@ -14746,15 +14679,6 @@ hterm.Terminal.IO = function(terminal) {
  */
 hterm.Terminal.IO.prototype.showOverlay = function(message, opt_timeout) {
   this.terminal_.showOverlay(message, opt_timeout);
-};
-
-/**
- * Hide the current overlay immediately.
- *
- * Useful when we show an overlay for an event with an unknown end time.
- */
-hterm.Terminal.IO.prototype.hideOverlay = function() {
-  this.terminal_.hideOverlay();
 };
 
 /**
@@ -14802,25 +14726,9 @@ hterm.Terminal.IO.prototype.push = function() {
 
 /**
  * Restore the Terminal's previous IO object.
- *
- * We'll flush out any queued data.
  */
 hterm.Terminal.IO.prototype.pop = function() {
   this.terminal_.io = this.previousIO_;
-  this.previousIO_.flush();
-};
-
-/**
- * Flush accumulated data.
- *
- * If we're not the active IO, the connected process might still be writing
- * data to us, but we won't be displaying it.  Flush any buffered data now.
- */
-hterm.Terminal.IO.prototype.flush = function() {
-  if (this.buffered_) {
-    this.terminal_.interpret(this.buffered_);
-    this.buffered_ = '';
-  }
 };
 
 /**
@@ -14879,13 +14787,8 @@ hterm.Terminal.IO.prototype.onTerminalResize = function(width, height) {
  * @param {string} string The UTF-8 encoded string to print.
  */
 hterm.Terminal.IO.prototype.writeUTF8 = function(string) {
-  // If another process has the foreground IO, buffer new data sent to this IO
-  // (since it's in the background).  When we're made the foreground IO again,
-  // we'll flush everything.
-  if (this.terminal_.io != this) {
-    this.buffered_ += string;
-    return;
-  }
+  if (this.terminal_.io != this)
+    throw 'Attempt to print from inactive IO object.';
 
   this.terminal_.interpret(string);
 };
@@ -14896,7 +14799,10 @@ hterm.Terminal.IO.prototype.writeUTF8 = function(string) {
  * @param {string} string The UTF-8 encoded string to print.
  */
 hterm.Terminal.IO.prototype.writelnUTF8 = function(string) {
-  this.writeUTF8(string + '\r\n');
+  if (this.terminal_.io != this)
+    throw 'Attempt to print from inactive IO object.';
+
+  this.terminal_.interpret(string + '\r\n');
 };
 
 /**
@@ -18621,7 +18527,7 @@ lib.resource.add('hterm/images/icon-96', 'image/png;base64',
 );
 
 lib.resource.add('hterm/concat/date', 'text/plain',
-'Sun, 24 Sep 2017 20:57:13 +0000' +
+'Sun, 24 Sep 2017 21:15:27 +0000' +
 ''
 );
 
@@ -19517,16 +19423,14 @@ hterm.Keyboard.prototype.uninstallKeyboard = function() {
 /**
  * Handle onTextInput events.
  *
- * These are generated when using IMEs, Virtual Keyboards (VKs), compose keys,
- * Unicode input, etc...
+ * We're not actually supposed to get these, but we do on the Mac in the case
+ * where a third party app sends synthetic keystrokes to Chrome.
  */
 hterm.Keyboard.prototype.onTextInput_ = function(e) {
   if (!e.data)
     return;
 
-  // Just pass the generated buffer straight down.  No need for us to split it
-  // up or otherwise parse it ahead of times.
-  this.terminal.onVTKeystroke(e.data);
+  e.data.split('').forEach(this.terminal.onVTKeystroke.bind(this.terminal));
 };
 
 /**
@@ -19761,22 +19665,28 @@ hterm.Keyboard.prototype.onKeyDown_ = function(e) {
     meta = false;
   }
 
-  if (action.substr(0, 2) == '\x1b[' && (alt || control || shift || meta)) {
+  if (action.substr(0, 2) == '\x1b[' && (alt || control || shift)) {
     // The action is an escape sequence that and it was triggered in the
     // presence of a keyboard modifier, we may need to alter the action to
     // include the modifier before sending it.
 
-    // The math is funky but aligns w/xterm.
-    let imod = 1;
-    if (shift)
-      imod += 1;
-    if (alt)
-      imod += 2;
-    if (control)
-      imod += 4;
-    if (meta)
-      imod += 8;
-    let mod = ';' + imod;
+    var mod;
+
+    if (shift && !(alt || control)) {
+      mod = ';2';
+    } else if (alt && !(shift || control)) {
+      mod = ';3';
+    } else if (shift && alt && !control) {
+      mod = ';4';
+    } else if (control && !(shift || alt)) {
+      mod = ';5';
+    } else if (shift && control && !alt) {
+      mod = ';6';
+    } else if (alt && control && !shift) {
+      mod = ';7';
+    } else if (shift && alt && control) {
+      mod = ';8';
+    }
 
     if (action.length == 3) {
       // Some of the CSI sequences have zero parameters unless modified.
@@ -23291,7 +23201,12 @@ hterm.ScrollPort.prototype.decorate = function(div) {
   this.screen_.addEventListener('touchcancel', this.onTouch_.bind(this));
   this.screen_.addEventListener('copy', this.onCopy_.bind(this));
   this.screen_.addEventListener('paste', this.onPaste_.bind(this));
-  this.screen_.addEventListener('drop', this.onDragAndDrop_.bind(this));
+  // Disable drag & drop of text/content.  We don't handle it at all (yet?),
+  // and the default behavior just confuses hterm.
+  this.screen_.addEventListener('drop', function(e) {
+    e.preventDefault();
+    return false;
+  });
 
   doc.body.addEventListener('keydown', this.onBodyKeyDown_.bind(this));
 
@@ -24426,8 +24341,6 @@ hterm.ScrollPort.prototype.onBodyKeyDown_ = function(e) {
 
 /**
  * Handle a paste event on the the ScrollPort's screen element.
- *
- * TODO: Handle ClipboardData.files transfers.  https://crbug.com/433581.
  */
 hterm.ScrollPort.prototype.onPaste_ = function(e) {
   this.pasteTarget_.focus();
@@ -24446,43 +24359,6 @@ hterm.ScrollPort.prototype.onPaste_ = function(e) {
  */
 hterm.ScrollPort.prototype.handlePasteTargetTextInput_ = function(e) {
   e.stopPropagation();
-};
-
-/**
- * Handle a drop event on the the ScrollPort's screen element.
- *
- * By default we try to copy in the structured format (HTML/whatever).
- * The shift key can select plain text though.
- *
- * TODO: Handle DataTransfer.files transfers.  https://crbug.com/433581.
- *
- * @param {DragEvent} e The drag event that fired us.
- */
-hterm.ScrollPort.prototype.onDragAndDrop_ = function(e) {
-  e.preventDefault();
-
-  let data;
-  let format;
-
-  // If the shift key isn't active, try to find a text source (but not plain
-  // text).  e.g. text/html is OK.
-  if (!e.shiftKey) {
-    e.dataTransfer.types.forEach((t) => {
-      if (!format && t != 'text/plain' && t.startsWith('text/'))
-        format = t;
-    });
-
-    // If we found a non-plain text source, try it out first.
-    if (format)
-      data = e.dataTransfer.getData(format);
-  }
-
-  // If we haven't loaded anything useful, fall back to plain text.
-  if (!data)
-    data = e.dataTransfer.getData('text/plain');
-
-  if (data)
-    this.publish('paste', {text: data});
 };
 
 /**
@@ -27307,31 +27183,23 @@ hterm.Terminal.prototype.showOverlay = function(msg, opt_timeout) {
   this.overlayNode_.style.left = (divSize.width - overlaySize.width -
       this.scrollPort_.currentScrollbarWidthPx) / 2 + 'px';
 
+  var self = this;
+
   if (this.overlayTimeout_)
     clearTimeout(this.overlayTimeout_);
 
   if (opt_timeout === null)
     return;
 
-  this.overlayTimeout_ = setTimeout(() => {
-    this.overlayNode_.style.opacity = '0';
-    this.overlayTimeout_ = setTimeout(() => this.hideOverlay(), 200);
-  }, opt_timeout || 1500);
-};
-
-/**
- * Hide the terminal overlay immediately.
- *
- * Useful when we show an overlay for an event with an unknown end time.
- */
-hterm.Terminal.prototype.hideOverlay = function() {
-  if (this.overlayTimeout_)
-    clearTimeout(this.overlayTimeout_);
-  this.overlayTimeout_ = null;
-
-  if (this.overlayNode_.parentNode)
-    this.overlayNode_.parentNode.removeChild(this.overlayNode_);
-  this.overlayNode_.style.opacity = '0.75';
+  this.overlayTimeout_ = setTimeout(function() {
+      self.overlayNode_.style.opacity = '0';
+      self.overlayTimeout_ = setTimeout(function() {
+          if (self.overlayNode_.parentNode)
+            self.overlayNode_.parentNode.removeChild(self.overlayNode_);
+          self.overlayTimeout_ = null;
+          self.overlayNode_.style.opacity = '0.75';
+        }, 200);
+    }, opt_timeout || 1500);
 };
 
 /**
@@ -27847,9 +27715,6 @@ hterm.Terminal.IO = function(terminal) {
 
   // The IO object to restore on IO.pop().
   this.previousIO_ = null;
-
-  // Any data this object accumulated while not active.
-  this.buffered_ = '';
 };
 
 /**
@@ -27867,15 +27732,6 @@ hterm.Terminal.IO = function(terminal) {
  */
 hterm.Terminal.IO.prototype.showOverlay = function(message, opt_timeout) {
   this.terminal_.showOverlay(message, opt_timeout);
-};
-
-/**
- * Hide the current overlay immediately.
- *
- * Useful when we show an overlay for an event with an unknown end time.
- */
-hterm.Terminal.IO.prototype.hideOverlay = function() {
-  this.terminal_.hideOverlay();
 };
 
 /**
@@ -27923,25 +27779,9 @@ hterm.Terminal.IO.prototype.push = function() {
 
 /**
  * Restore the Terminal's previous IO object.
- *
- * We'll flush out any queued data.
  */
 hterm.Terminal.IO.prototype.pop = function() {
   this.terminal_.io = this.previousIO_;
-  this.previousIO_.flush();
-};
-
-/**
- * Flush accumulated data.
- *
- * If we're not the active IO, the connected process might still be writing
- * data to us, but we won't be displaying it.  Flush any buffered data now.
- */
-hterm.Terminal.IO.prototype.flush = function() {
-  if (this.buffered_) {
-    this.terminal_.interpret(this.buffered_);
-    this.buffered_ = '';
-  }
 };
 
 /**
@@ -28000,13 +27840,8 @@ hterm.Terminal.IO.prototype.onTerminalResize = function(width, height) {
  * @param {string} string The UTF-8 encoded string to print.
  */
 hterm.Terminal.IO.prototype.writeUTF8 = function(string) {
-  // If another process has the foreground IO, buffer new data sent to this IO
-  // (since it's in the background).  When we're made the foreground IO again,
-  // we'll flush everything.
-  if (this.terminal_.io != this) {
-    this.buffered_ += string;
-    return;
-  }
+  if (this.terminal_.io != this)
+    throw 'Attempt to print from inactive IO object.';
 
   this.terminal_.interpret(string);
 };
@@ -28017,7 +27852,10 @@ hterm.Terminal.IO.prototype.writeUTF8 = function(string) {
  * @param {string} string The UTF-8 encoded string to print.
  */
 hterm.Terminal.IO.prototype.writelnUTF8 = function(string) {
-  this.writeUTF8(string + '\r\n');
+  if (this.terminal_.io != this)
+    throw 'Attempt to print from inactive IO object.';
+
+  this.terminal_.interpret(string + '\r\n');
 };
 
 /**
@@ -31742,7 +31580,7 @@ lib.resource.add('hterm/images/icon-96', 'image/png;base64',
 );
 
 lib.resource.add('hterm/concat/date', 'text/plain',
-'Sun, 24 Sep 2017 20:57:13 +0000' +
+'Sun, 24 Sep 2017 21:15:27 +0000' +
 ''
 );
 

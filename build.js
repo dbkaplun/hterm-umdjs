@@ -5,7 +5,7 @@ const fs = require('fs')
 const path = require('path')
 
 const HTERM_REPO = 'https://chromium.googlesource.com/apps/libapps'
-const HTERM_BRANCH = 'master'
+const HTERM_BRANCH = 'hterm-1.72'
 const OUTFILE = 'dist/index.js'
 const TMPDIR = path.join(__dirname, 'tmp')
 
