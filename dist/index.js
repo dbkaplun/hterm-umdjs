@@ -5476,7 +5476,7 @@ lib.resource.add('hterm/images/icon-96', 'image/png;base64',
 );
 
 lib.resource.add('hterm/concat/date', 'text/plain',
-'Sun, 24 Sep 2017 21:15:26 +0000' +
+'Mon, 25 Sep 2017 09:04:06 +0000' +
 ''
 );
 
@@ -18527,7 +18527,7 @@ lib.resource.add('hterm/images/icon-96', 'image/png;base64',
 );
 
 lib.resource.add('hterm/concat/date', 'text/plain',
-'Sun, 24 Sep 2017 21:15:27 +0000' +
+'Mon, 25 Sep 2017 09:04:07 +0000' +
 ''
 );
 
@@ -31580,7 +31580,7 @@ lib.resource.add('hterm/images/icon-96', 'image/png;base64',
 );
 
 lib.resource.add('hterm/concat/date', 'text/plain',
-'Sun, 24 Sep 2017 21:15:27 +0000' +
+'Mon, 25 Sep 2017 09:04:07 +0000' +
 ''
 );
 
