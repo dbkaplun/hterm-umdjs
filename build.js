@@ -1,24 +1,23 @@
-#!/usr/bin/env node
+#!/usr/bin/env babel-node
 
-const execSync = require('child_process').execSync
-const fs = require('fs')
-const path = require('path')
+import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
-const HTERM_REPO = 'https://chromium.googlesource.com/apps/libapps'
-const HTERM_BRANCH = 'master'
-const OUTFILE = 'dist/index.js'
-const TMPDIR = path.join(__dirname, 'tmp')
+export const HTERM_REPO = 'https://chromium.googlesource.com/apps/libapps';
+export const HTERM_BRANCH = 'master';
+export const OUTFILE = 'dist/index.js';
+export const TMPDIR = path.resolve(__dirname, 'tmp');
 
-function buildHterm (repo, branch, outfile, tmpdir) {
-  if (!tmpdir) tmpdir = TMPDIR
-  const gitargs = `--work-tree="${tmpdir}" --git-dir="${tmpdir}/.git"`
-  execSync(`mkdir -p ${tmpdir}`)
-  execSync(`git clone ${repo} ${tmpdir}`)
-  execSync(`git ${gitargs} checkout ${branch}`)
-  execSync(`${tmpdir}/hterm/bin/mkdist.sh`)
+export function buildHterm(repo, branch, outfile, tmpdir = TMPDIR) {
+  const gitargs = `--work-tree="${tmpdir}" --git-dir="${tmpdir}/.git"`;
+  execSync(`mkdir -p ${tmpdir}`);
+  execSync(`git clone ${repo} ${tmpdir}`);
+  execSync(`git ${gitargs} checkout ${branch}`);
+  execSync(`${tmpdir}/hterm/bin/mkdist.sh`);
 
   // modified version of https://github.com/umdjs/umd/blob/95563fd6b46f06bda0af143ff67292e7f6ede6b7/templates/returnExportsGlobal.js
-  let htermEncoding = 'utf8';
+  const htermEncoding = 'utf8';
   fs.writeFileSync(path.join(__dirname, outfile), `
 (function (root, factory) {
   var GLOBAL_NAME = '_htermExports';
@@ -35,36 +34,32 @@ function buildHterm (repo, branch, outfile, tmpdir) {
     root[GLOBAL_NAME] = factory({});
   }
 }(this, function (exports) {
-  ${/* libdot */ fs.readFileSync(`${tmpdir}/hterm/dist/js/hterm_all.js`, htermEncoding).replace('lib.ensureRuntimeDependencies_();', '')}
+  ${/* libdot */fs.readFileSync(`${tmpdir}/hterm/dist/js/hterm_all.js`, htermEncoding).replace('lib.ensureRuntimeDependencies_();', '')}
   exports.lib = lib;
-  ${/* hterm */  fs.readFileSync(`${tmpdir}/hterm/dist/js/hterm.js`,     htermEncoding)}
+  ${/* hterm */fs.readFileSync(`${tmpdir}/hterm/dist/js/hterm.js`, htermEncoding)}
   exports.hterm = hterm;
 }));
-  `.replace(/^\s+/, '').replace(/\s+$/, '\n'))
+  `.replace(/^\s+/, '').replace(/\s+$/, '\n'));
 
-  let [_, htermVersion] = fs.readFileSync(`${tmpdir}/hterm/doc/ChangeLog.md`).toString().match(/([\d.]+)/) || []
-  let htermRev = execSync(`git ${gitargs} rev-parse HEAD`).toString().trim()
-  execSync(`rm -rf ${tmpdir}`)
+  const [, htermVersion] = fs.readFileSync(`${tmpdir}/hterm/doc/ChangeLog.md`).toString().match(/([\d.]+)/) || [];
+  const htermRev = execSync(`git ${gitargs} rev-parse HEAD`).toString().trim();
+  execSync(`rm -rf ${tmpdir}`);
   return {
     version: htermVersion,
-    rev: htermRev
-  }
+    rev: htermRev,
+  };
 }
 
-function updateVersion (path, htermVersion, htermRev) {
-  let pkg = JSON.parse(fs.readFileSync(path))
-  pkg.version = `${pkg.version.replace(/\+.*$/, '')}+${htermVersion ? `${htermVersion}.sha.` : ''}${htermRev.slice(0, 7)}`
-  fs.writeFileSync(path, `${JSON.stringify(pkg, null, '  ')}\n`)
-  return pkg.version
+export function updateVersion(packageJSONPath, htermVersion, htermRev) {
+  const pkg = JSON.parse(fs.readFileSync(packageJSONPath));
+  pkg.version = `${pkg.version.replace(/\+.*$/, '')}+${htermVersion ? `${htermVersion}.sha.` : ''}${htermRev.slice(0, 7)}`;
+  fs.writeFileSync(packageJSONPath, `${JSON.stringify(pkg, null, '  ')}\n`);
+  return pkg.version;
 }
 
 if (require.main === module) {
-  let hterm = buildHterm(HTERM_REPO, HTERM_BRANCH, OUTFILE)
-  console.log(`built ${OUTFILE}`)
-  let version = updateVersion('package.json', hterm.version, hterm.rev)
-  console.log(version)
+  const hterm = buildHterm(HTERM_REPO, HTERM_BRANCH, OUTFILE);
+  console.log(`built ${OUTFILE}`); // eslint-disable-line no-console
+  const version = updateVersion('package.json', hterm.version, hterm.rev);
+  console.log(version); // eslint-disable-line no-console
 }
-
-// this is a build script but let's be a good citizen anyway
-module.exports.buildHterm = buildHterm
-module.exports.updateVersion = updateVersion

@@ -10,14 +10,12 @@ $ npm install hterm-umdjs
 ## Usage
 
 ```js
-import {hterm, lib} from 'hterm-umdjs';
+import { hterm, lib } from 'hterm-umdjs';
 // or
-var htermUMDjs = require('hterm-umdjs');
-var hterm = htermUMDjs.hterm;
-var lib = htermUMDjs.lib;
+const { hterm, lib } = require('hterm-umdjs');
 
 hterm.defaultStorage = new lib.Storage.Memory();
-var term = new hterm.Terminal();
+const term = new hterm.Terminal();
 ```
 
 ## See also

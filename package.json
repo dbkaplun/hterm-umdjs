@@ -6,10 +6,12 @@
   "bugs": "https://github.com/dbkaplun/hterm-umdjs/issues",
   "main": "dist/index.js",
   "scripts": {
-    "build": "./build.js",
+    "build": "babel-node build.js",
+    "test": "npm run eslint && npm run jest",
     "hterm-version": "if [[ -z $(git status --porcelain) ]]; then version=\"$(npm run build | tail -n1)\" && npm test && git add . && git commit -m \"Version $version\" && git tag \"v$version\"; else echo 'Git working directory not clean.' && exit 1; fi",
     "shipit": "git push origin master --tags && npm publish",
-    "test": "jest"
+    "eslint": "eslint .",
+    "jest": "jest"
   },
   "repository": {
     "type": "git",
@@ -17,8 +19,14 @@
   },
   "dependencies": {},
   "devDependencies": {
+    "babel-cli": "6.26.0",
     "babel-jest": "22.4.4",
     "babel-preset-env": "1.7.0",
+    "eslint": "4.19.1",
+    "eslint-config-airbnb": "16.1.0",
+    "eslint-plugin-import": "2.12.0",
+    "eslint-plugin-jsx-a11y": "6.0.3",
+    "eslint-plugin-react": "7.8.2",
     "jest": "22.4.4"
   },
   "author": "Dan Kaplun <dbkaplun@gmail.com>",

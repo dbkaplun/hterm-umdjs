@@ -1,8 +1,9 @@
-import { hterm, lib } from 'hterm-umdjs';
+import { hterm, lib } from '..';
 
 describe('hterm-umdjs', () => {
   it('should work', () => {
     hterm.defaultStorage = new lib.Storage.Memory();
-    var term = new hterm.Terminal();
+    const term = new hterm.Terminal();
+    term.io.println('hterm-umdjs');
   });
 });
