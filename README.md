@@ -1,4 +1,4 @@
-# hterm-umdjs
+# hterm-umdjs [![Build Status](https://travis-ci.org/dbkaplun/hterm-umdjs.svg?branch=master)](https://travis-ci.org/dbkaplun/hterm-umdjs)
 Chromium's hterm, automatically packaged as a UMD module (CommonJS/AMD/globals)
 
 ## Installation

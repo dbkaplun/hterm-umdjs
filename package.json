@@ -7,16 +7,20 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "./build.js",
-    "build-and-tag": "if [[ -z $(git status --porcelain) ]]; then version=\"$(npm run build | tail -n1)\" && git add . && git commit -m \"Version $version\" && git tag \"v$version\"; else echo 'Please make sure your git repository is clean before running build-and-tag.' && exit 1; fi",
-    "shipit": "npm run build-and-tag && git push origin master --tags && npm publish",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "hterm-version": "if [[ -z $(git status --porcelain) ]]; then version=\"$(npm run build | tail -n1)\" && npm test && git add . && git commit -m \"Version $version\" && git tag \"v$version\"; else echo 'Git working directory not clean.' && exit 1; fi",
+    "shipit": "git push origin master --tags && npm publish",
+    "test": "jest"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dbkaplun/hterm-umdjs.git"
   },
   "dependencies": {},
-  "devDependencies": {},
+  "devDependencies": {
+    "babel-jest": "22.4.4",
+    "babel-preset-env": "1.7.0",
+    "jest": "22.4.4"
+  },
   "author": "Dan Kaplun <dbkaplun@gmail.com>",
   "license": "MIT"
 }
