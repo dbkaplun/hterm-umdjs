@@ -14,7 +14,7 @@ export function buildHterm(repo, branch, outfile, tmpdir = TMPDIR) {
   execSync(`mkdir -p ${tmpdir}`);
   execSync(`git clone ${repo} ${tmpdir}`);
   execSync(`git ${gitargs} checkout ${branch}`);
-  execSync(`${tmpdir}/hterm/bin/mkdist.sh`);
+  execSync(`${tmpdir}/hterm/bin/mkdist`);
 
   // modified version of https://github.com/umdjs/umd/blob/95563fd6b46f06bda0af143ff67292e7f6ede6b7/templates/returnExportsGlobal.js
   const htermEncoding = 'utf8';
