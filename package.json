@@ -2,8 +2,8 @@
   "name": "hterm-umdjs",
   "version": "1.4.1+1.89.sha.4a60ea7",
   "description": "Chromium's hterm, automatically packaged as a UMD module (CommonJS/AMD/globals)",
-  "homepage": "https://github.com/dbkaplun/hterm-umdjs#readme",
-  "bugs": "https://github.com/dbkaplun/hterm-umdjs/issues",
+  "homepage": "https://github.com/dte/hterm-umdjs#readme",
+  "bugs": "https://github.com/dte/hterm-umdjs/issues",
   "main": "dist/index.js",
   "scripts": {
     "build": "babel-node build.js",
@@ -29,6 +29,6 @@
     "eslint-plugin-react": "7.8.2",
     "jest": "22.4.4"
   },
-  "author": "Dan Kaplun <dbkaplun@gmail.com>",
+  "author": "DTE",
   "license": "MIT"
 }
